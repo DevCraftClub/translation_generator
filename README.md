@@ -4,7 +4,9 @@
 
 ## Использование
 
-Ради простого / упрошённого использования скрипта был написан скрипт для вывода команд в консольной строке с запросом данных
+Ради простого / упрошённого использования скрипта был написан скрипт для вывода команд в консольной строке с запросом данных.
+
+Достаточно запустить файл **start.cmd** в папке **app**.
 
 [![Скриншот](https://i120.fastpic.org/thumb/2022/0924/41/57b6f862dc5a10f5eeb6b60ae4170e41.jpeg)](https://fastpic.org/view/120/2022/0924/57b6f862dc5a10f5eeb6b60ae4170e41.png.html)
 
@@ -13,6 +15,8 @@
 ### Команды
 
 #### _parser.exe
+
+Файл находится в папке **app**.
 
 ```bash
 _parser.exe -s C:\Path\To\Folder -e C:\Path\To\Folder\Exclude -m MaHarder -l ru_RU -o C:\Path\To\Output -d y
@@ -30,7 +34,7 @@ _parser.exe -s C:\Path\To\Folder -e C:\Path\To\Folder\Exclude -m MaHarder -l ru_
 
 #### main.py
 
-Устанавливаем заивисимости из файла requirements.txt и запускаем в консоли
+Устанавливаем заивисимости из файла **requirements.txt** и запускаем в консоли. Файл находится в корне проекта.
 
 ```bash
 python main.py -s C:\Path\To\Folder -e C:\Path\To\Folder\Exclude -m MaHarder -l ru_RU -o C:\Path\To\Output -d True
