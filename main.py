@@ -3,28 +3,31 @@ import os
 import re
 import time
 import traceback
-from pathlib import Path
 import xml.etree.cElementTree as ET
+from pathlib import Path
 from xml.dom import minidom
+
 import numpy
 import xmltodict
 
 
 def list_dir(dirs, expt=None):
-	if expt is None:
-		expt = []
-	_dirs = []
+	"""Рекурсивная функция для поиска всех директорий и файлов."""
+	# Используем множество (set) для expt, чтобы ускорить поиск
+	expt = set(expt) if expt else set()
+	result_dirs = []
 
-	for d in os.listdir(dirs):
-		data = os.path.join(dirs, d)
-		if Path(data).is_dir():
-			if data not in expt:
-				_dirs = [*_dirs, *list_dir(data, expt)]
-		else:
-			if data not in expt:
-				_dirs.append(data)
+	# os.scandir быстрее, поскольку предоставляет итератор
+	for entry in os.scandir(dirs):
+		if entry.is_dir():
+			# Добавляем директории рекурсивно
+			if entry.path not in expt:
+				result_dirs.extend(list_dir(entry.path, expt))
+		elif entry.path not in expt:
+			# Добавляем файлы, которых нет в списке исключений
+			result_dirs.append(entry.path)
 
-	return _dirs
+	return result_dirs
 
 
 # Print iterations progress
@@ -50,140 +53,126 @@ def printProgressBar(iteration, total, prefix='', suffix='', decimals=1, length=
 	if iteration == total:
 		print()
 
-parser = argparse.ArgumentParser(description='Translation File Generator')
+def parse_arguments():
+	"""Считывание и обработка аргументов командной строки."""
+	parser = argparse.ArgumentParser(description='Генератор файлов перевода')
+	parser.add_argument('-s', '--source', type=str, help='Путь к исходным файлам', default='source')
+	parser.add_argument('-o', '--output', type=str, help='Путь к выходным файлам', default='output')
+	parser.add_argument('-e', '--exception', type=str, help='Игнорируемые файлы/пути', action='append', default=[
+		'engine/inc/maharder/admin/composer.lock',
+		'engine/inc/maharder/admin/composer.phar',
+		'engine/inc/maharder/admin/assets/',
+		'engine/inc/maharder/_includes/composer',
+		'engine/inc/maharder/_includes/module_files',
+		'engine/inc/maharder/_includes/vendor',
+		'engine/inc/maharder/admin/composer.json',
+		'engine/inc/maharder/admin/.htaccess',
+		'engine/inc/maharder/admin/assets/.htaccess',
+		'engine/inc/maharder/admin/assets/js/i18n',
+		'engine/inc/maharder/admin/assets/css',
+		'engine/inc/maharder/admin/assets/img',
+		'engine/inc/maharder/admin/assets/webfonts',
+		'engine/inc/maharder/_locales',
+		'engine/inc/maharder/_cache',
+		'engine/inc/maharder/_logs',
+		'engine/inc/maharder/_config',
+		'engine/inc/maharder/_migrations',
+	])
+	parser.add_argument('-m', '--module', type=str, help='Имя файла перевода', default='messages')
+	parser.add_argument('-l', '--lang', type=str, help='Язык перевода', default='ru_RU')
+	parser.add_argument('-d', '--debug', action='store_true', help='Отображать ошибки', default=False)
+	return parser.parse_args()
 
-parser.add_argument('-s', '--source', type=str, help='Путь исходных файлов, для поиска фраз', default='src')
-parser.add_argument('-o', '--output', type=str, help='Путь выводимых файлов, куда будут сохраняться языковые файлы', default='out')
-parser.add_argument('-e', '--exception', type=str,  help='Путь игнорируемых файлов, которые будут игнорироваться при проверке', action='append',  default=[])
-parser.add_argument('-m', '--module', type=str, help='Название файла перевода', default='messages')
-parser.add_argument('-l', '--lang', type=str, help='Исходный язык', default='ru_RU')
-parser.add_argument('-d', '--debug', type=bool, help='Отображать ошибки при выполнении скрипта?', default=False)
 
-args = parser.parse_args()
+def sanitize_translations(message, translations):
+	"""Проверка и добавление перевода в словарь."""
+	if not message or message is None or message == '':  # Пропускаем пустые строки
+		return ""
+	if message not in translations:
+		translations[message] = message  # Если нет перевода, используем оригинал
+	return translations[message]
 
-if args.source == 'src':
-	src_dir = os.path.join(os.path.dirname(__file__), args.source)
-	Path(src_dir).mkdir(parents=True, exist_ok=True)
-else:
-	src_dir = args.source
-
-if args.output == 'out':
-	out_dir = os.path.join(os.path.dirname(__file__), args.output)
-	Path(out_dir).mkdir(parents=True, exist_ok=True)
-else:
-	out_dir = args.output
-
-output_file = os.path.join(out_dir, args.lang, f'{args.module}.xliff')
-Path(os.path.join(out_dir, args.lang)).mkdir(parents=True, exist_ok=True)
-
-translations = []
-exceptions = []
-for e in args.exception:
-	for s in e.split(','):
-		exceptions.append(s.strip())
-search_dirs = list_dir(src_dir, exceptions)
-
-regex = [
-	r"{{[\s*][\'\"](?P<message>[^\|]*)[\'\"]\|trans[\s*\'\"]}}",
-	r"{%[\s*][\'\"](?P<message>[^\|]*)[\'\"]\|trans[\s*\'\"]%}",
-	r"{{[\s*][\'\"](?P<message>[^\|]*)[\'\"]\|htmlentities|raw|trans|html_entity_decode[\s*\'\"]}}",
-	r"{%[\s*][\'\"](?P<message>[^\|]*)[\'\"]\|htmlentities|raw|trans|html_entity_decode[\s*\'\"]%}",
-	r"\'(?P<message>[^\'\|]*)\'\|trans",
-	r'\"(?P<message>[^\"\|]*)\"\|trans',
-	r"\'(?P<message>[^\'\|]*)\'\|htmlentities|raw|trans|html_entity_decode",
-	r'\"(?P<message>[^\"\|]*)\"\|htmlentities|raw|trans|html_entity_decode',
-	r"{%\s*trans\s*%}(?P<message>[^{]*){%\s*endtrans\s*%}",
-	r"__\([\s'\"](?P<module>.*)[\s'\"],[\s'\"](?P<message>.*)['\"]",
-]
-
-if Path(output_file).is_file():
+def extract_translations_from_file(file, regex_patterns, translations, debug, module):
+	"""Извлечение сообщений перевода из файла."""
 	try:
-		trans_file_parse = ET.tostring(ET.parse(output_file).getroot())
-		trans_parsed_dict = xmltodict.parse(trans_file_parse)
-		for v in trans_parsed_dict['ns0:xliff']['ns0:file']['ns0:body']['ns0:trans-unit']:
-			translations.append({v['ns0:source']: v['ns0:target']})
-	except Exception as exc:
-		if args.debug:
-			print(exc)
-		else:
-			pass
+		with open(file, mode="r", encoding="utf-8") as f:
+			for line in f:
+				for regex in regex_patterns:
+					match = re.search(regex, line)
 
-printProgressBar(0, len(search_dirs), prefix='Сканирование файлов:', suffix='завершено', length=50)
+					if match:
+						# Убираем лишние кавычки сразу
+						message = match.group("message").strip(' "\'')
+						if message in ['', '#', '.', ',', module]:
+							continue
+						sanitize_translations(message, translations)
+						# continue
+	except Exception as e:
+		if debug:
+			print(f"Ошибка при обработке файла: {file}\n{str(e)}")
+			traceback.print_exc()
 
-for i, f in enumerate(search_dirs):
-	if Path(f).is_file():
-		with open(f, mode="r", encoding="utf-8") as file:
-			try:
-				for l in file:
-					for r in regex:
-						result = re.findall(r, l)
+def main():
+	args = parse_arguments()
 
-						for rs in result:
-							if isinstance(rs, (numpy.ndarray, list, tuple)): message = rs[-1]
-							else: message = rs
+	# Определяем директории
+	src_dir = Path(args.source).resolve()
+	out_dir = Path(args.output).resolve() / args.lang
+	out_dir.mkdir(parents=True, exist_ok=True)  # Создаем директорию, если отсутствует
 
-							if message[0] == "'" or message[0] == '"': message = message[1:]
-							if message[-1] == "'" or message[-1] == '"': message = message[:-1]
+	output_file = out_dir / f'{args.module}.xliff'
+	translations = {}  # Используем dict для перевода вместо списка
+	exceptions = set(str(src_dir / e.strip()) for expt in args.exception for e in expt.split(','))
 
-							if len(list(filter(lambda x: message in x, translations))) > 0:
-								for tr in translations:
-									try:
-										for key, value in tr.iteritems():
-											if key == message:
-												if value != message:
-													translations[key] = message
-									except:
-										for key, value in tr.items():
-											if key == message:
-												if value != message:
-													translations[key] = message
-							else:
-								translations.append({message: message})
-			except:
-				if args.debug:
-					print(f'File:\t{f}\nText:\t{l}')
-					traceback.print_exc()
-				else:
-					pass
-	time.sleep(0.1)
-	printProgressBar(i + 1, len(search_dirs), prefix='Сканирование файлов:', suffix='завершено', length=50)
+	# Ищем нужные файлы
+	search_dirs = list_dir(src_dir, exceptions)
 
-with open(output_file, 'w', encoding="utf-8") as f:
-	xliff = ET.Element("xliff", xmlns="urn:oasis:names:tc:xliff:document:1.2", version="1.2")
-	file = ET.SubElement(xliff, "file", original=f'{args.module}.{args.lang}', datatype="plaintext")
-	file.set("source-language", args.lang)
-	file.set("target-language", args.lang)
-	body = ET.SubElement(file, "body")
+	regex_patterns = [
+		# {{ 'Настройки' | trans }} или {% 'Настройки' | trans %}
+		r"(?:{{|{%)[^'{]*'(?P<message>(?:[^']|\\')*?)'(?:\s*\|\s*\w+\s*)*\|\s*trans\s*(?:}}|%})",
+        r"(?:{{|{%)[^\"{]*\"(?P<message>(?:[^\"]|\\\")*?)\"(?:\s*\|\s*\w+\s*)*\|\s*trans\s*(?:}}|%})",
+		# __('module', 'message')
+		r"__\(\s*\"(?P<module>[a-zA-Z0-9_]+)\"\s*,\s*\"(?P<message>.*?[^\\])\"\s*\)",
+		r"__\(\s*'(?P<module>[a-zA-Z0-9_]+)'\s*,\s*'(?P<message>.*?[^\\])'\s*\)",
+		# {% trans %}message{% endtrans %}
+		r"{%\s*trans\s*%}(?P<message>.*?){%\s*endtrans\s*%}",
+		# 'text' | trans
+		r"'(?P<message>(?:[^']|\\')*?)'(?:\s*\|\s*\w+\s*)*\|\s*trans",
+		r"\"(?P<message>(?:[^\"]|\\\")*?)\"(?:\s*\|\s*\w+\s*)*\|\s*trans",
+		# translate(`text`), __(`text`)
+		r"translate\(`(?P<message>.*?)`\)",
+		r"__\(`(?P<message>.*?)`\)",
+		# translate("text"), __("text")
+		r"translate\(\"(?P<message>[^\"]*?)\"\)",
+		r"__\(\"(?P<message>[^\"]*?)\"\)",
+		# translate('text'), __('text')
+		r"translate\('(?P<message>(?:[^']|\\')*?)'\)",
+		r"__\('(?P<message>(?:[^']|\\')*?)'\)"
+	]
 
-	for i,t in enumerate(translations):
-		c = i+1
-		for k, v in t.items():
-			transUnit = ET.SubElement(body, "trans-unit")
-			transUnit.set("id", str(c))
-			source = ET.SubElement(transUnit, "source").text = k
-			target = ET.SubElement(transUnit, "target").text = v
+	# Печать прогресса
+	printProgressBar(0, len(search_dirs), prefix='Сканирование файлов:', suffix='завершено', length=50)
+	for i, filepath in enumerate(search_dirs):
+		if Path(filepath).is_file():
+			extract_translations_from_file(filepath, regex_patterns, translations, args.debug, args.module)
+		time.sleep(0.1)  # Имитируем прогресс
+		printProgressBar(i + 1, len(search_dirs), prefix='Сканирование файлов:', suffix='завершено', length=50)
 
-	# f.write('<?xml version="1.0" encoding="UTF-8"?>\n')
-	xmlstr = minidom.parseString(ET.tostring(xliff, encoding="unicode")).toprettyxml(indent=f'\t')
-	f.write(xmlstr)
+	# Сохраняем переводы в XLIFF файл
+	with open(output_file, 'w', encoding="utf-8") as f:
+		xliff_tree = ET.Element("xliff", xmlns="urn:oasis:names:tc:xliff:document:1.2", version="1.2")
+		file_tag = ET.SubElement(xliff_tree, "file", original=f'{args.module}.{args.lang}', datatype="plaintext")
+		file_tag.set("source-language", args.lang)
+		file_tag.set("target-language", args.lang)
+
+		body = ET.SubElement(file_tag, "body")
+		for id, (source, target) in enumerate(translations.items(), start=1):
+			trans_unit = ET.SubElement(body, "trans-unit", id=str(id))
+			ET.SubElement(trans_unit, "source").text = source
+			ET.SubElement(trans_unit, "target").text = target
+
+		f.write(minidom.parseString(ET.tostring(xliff_tree, encoding="unicode")).toprettyxml(indent="  "))
+
 
 if __name__ == '__main__':
-	phrases_total = len(translations)
-	print(f"""
-===================================================
-||\tАвтор:\t\tMaxim Harder <dev@devcraft.club>
-||\tСайт:\t\thttps://devcraft.club
-||\tTelegram:\thttps://t.me/MaHarder
-||\t======================================
-||\tApp:\t\tTranslations generator for Crowdin.com (For my Apps)
-||\tВерсия:\t\t1.0.0
-||\tДата:\t\t2022-09-15
-||\tЛицензия:\tMIT
-||\t======================================
-||\tФраз:\t\t{phrases_total}
-||\tИсходник:\t{args.source}
-||\tВывод:\t\t{args.output}
-||\tЯзык:\t\t{args.lang}
-||\tПлагин:\t\t{args.module}
-===================================================
-""")
+	main()
