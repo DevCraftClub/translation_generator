@@ -7,9 +7,6 @@ import xml.etree.cElementTree as ET
 from pathlib import Path
 from xml.dom import minidom
 
-import numpy
-import xmltodict
-
 
 def list_dir(dirs, expt=None):
 	"""Рекурсивная функция для поиска всех директорий и файлов."""
@@ -112,6 +109,30 @@ def extract_translations_from_file(file, regex_patterns, translations, debug, mo
 			print(f"Ошибка при обработке файла: {file}\n{str(e)}")
 			traceback.print_exc()
 
+
+def getTranslationsFromFile(output_file):
+	"""Проверяет наличие файла перевода, возвращает dict с переводами или пустой dict."""
+	translations = {}
+	if not output_file.exists():
+		return translations
+
+	try:
+		tree = ET.parse(output_file)
+		root = tree.getroot()
+
+		for trans_unit in root.findall(".//{urn:oasis:names:tc:xliff:document:1.2}trans-unit"):
+			source = trans_unit.find("{urn:oasis:names:tc:xliff:document:1.2}source")
+			target = trans_unit.find("{urn:oasis:names:tc:xliff:document:1.2}target")
+
+			if source is not None and target is not None:
+				translations[source.text] = target.text
+	except Exception as e:
+		print(f"Ошибка при чтении файла переводов: {output_file}\n{str(e)}")
+		traceback.print_exc()
+
+	return translations
+
+
 def main():
 	args = parse_arguments()
 
@@ -121,7 +142,7 @@ def main():
 	out_dir.mkdir(parents=True, exist_ok=True)  # Создаем директорию, если отсутствует
 
 	output_file = out_dir / f'{args.module}.xliff'
-	translations = {}  # Используем dict для перевода вместо списка
+	translations = getTranslationsFromFile(output_file)  # Используем dict для перевода вместо списка
 	exceptions = set(str(src_dir / e.strip()) for expt in args.exception for e in expt.split(','))
 
 	# Ищем нужные файлы
@@ -132,8 +153,8 @@ def main():
 		r"(?:{{|{%)[^'{]*'(?P<message>(?:[^']|\\')*?)'(?:\s*\|\s*\w+\s*)*\|\s*trans\s*(?:}}|%})",
         r"(?:{{|{%)[^\"{]*\"(?P<message>(?:[^\"]|\\\")*?)\"(?:\s*\|\s*\w+\s*)*\|\s*trans\s*(?:}}|%})",
 		# __('module', 'message')
-		r"__\(\s*\"(?P<module>[a-zA-Z0-9_]+)\"\s*,\s*\"(?P<message>.*?[^\\])\"\s*\)",
-		r"__\(\s*'(?P<module>[a-zA-Z0-9_]+)'\s*,\s*'(?P<message>.*?[^\\])'\s*\)",
+		r"__\(\s*\"(\s*\"(?P<message>.*?[^\\])\"\s*\)",
+		r"__\(\s*'(\s*'(?P<message>.*?[^\\])'\s*\)",
 		# {% trans %}message{% endtrans %}
 		r"{%\s*trans\s*%}(?P<message>.*?){%\s*endtrans\s*%}",
 		# 'text' | trans
