@@ -53,12 +53,11 @@ def printProgressBar(iteration, total, prefix='', suffix='', decimals=1, length=
 def parse_arguments():
 	"""Считывание и обработка аргументов командной строки."""
 	parser = argparse.ArgumentParser(description='Генератор файлов перевода')
-	parser.add_argument('-s', '--source', type=str, help='Путь к исходным файлам', default='source')
-	parser.add_argument('-o', '--output', type=str, help='Путь к выходным файлам', default='output')
+	parser.add_argument('-s', '--source', type=str, help='Путь к исходным файлам', default=r'source')
+	parser.add_argument('-o', '--output', type=str, help='Путь к выходным файлам', default=r'output')
 	parser.add_argument('-e', '--exception', type=str, help='Игнорируемые файлы/пути', action='append', default=[
 		'engine/inc/maharder/admin/composer.lock',
 		'engine/inc/maharder/admin/composer.phar',
-		'engine/inc/maharder/admin/assets/',
 		'engine/inc/maharder/_includes/composer',
 		'engine/inc/maharder/_includes/module_files',
 		'engine/inc/maharder/_includes/vendor',
@@ -91,19 +90,26 @@ def sanitize_translations(message, translations):
 
 def extract_translations_from_file(file, regex_patterns, translations, debug, module):
 	"""Извлечение сообщений перевода из файла."""
+	compiled_patterns = [re.compile(p, re.DOTALL) for p in regex_patterns]
+
 	try:
 		with open(file, mode="r", encoding="utf-8") as f:
 			for line in f:
-				for regex in regex_patterns:
-					match = re.search(regex, line)
+				for regex in compiled_patterns:
+					match = regex.search(line)
 
 					if match:
 						# Убираем лишние кавычки сразу
-						message = match.group("message").strip(' "\'')
-						if message in ['', '#', '.', ',', module]:
+						message = match.group("message").strip().strip('"\'`')
+
+						# Пропускаем пустые и служебные значения
+						if not message or message in {'#', '.', ',', module, '=&gt;'}:
 							continue
+
+						# Обработка экранированных кавычек
+						message = re.sub(r"\\(['\"`])", r"\1", message)
 						sanitize_translations(message, translations)
-						# continue
+						break
 	except Exception as e:
 		if debug:
 			print(f"Ошибка при обработке файла: {file}\n{str(e)}")
@@ -149,26 +155,17 @@ def main():
 	search_dirs = list_dir(src_dir, exceptions)
 
 	regex_patterns = [
-		# {{ 'Настройки' | trans }} или {% 'Настройки' | trans %}
-		r"(?:{{|{%)[^'{]*'(?P<message>(?:[^']|\\')*?)'(?:\s*\|\s*\w+\s*)*\|\s*trans\s*(?:}}|%})",
-        r"(?:{{|{%)[^\"{]*\"(?P<message>(?:[^\"]|\\\")*?)\"(?:\s*\|\s*\w+\s*)*\|\s*trans\s*(?:}}|%})",
-		# __('module', 'message')
-		r"__\(\s*\"(\s*\"(?P<message>.*?[^\\])\"\s*\)",
-		r"__\(\s*'(\s*'(?P<message>.*?[^\\])'\s*\)",
-		# {% trans %}message{% endtrans %}
-		r"{%\s*trans\s*%}(?P<message>.*?){%\s*endtrans\s*%}",
-		# 'text' | trans
-		r"'(?P<message>(?:[^']|\\')*?)'(?:\s*\|\s*\w+\s*)*\|\s*trans",
-		r"\"(?P<message>(?:[^\"]|\\\")*?)\"(?:\s*\|\s*\w+\s*)*\|\s*trans",
-		# translate(`text`), __(`text`)
-		r"translate\(`(?P<message>.*?)`\)",
-		r"__\(`(?P<message>.*?)`\)",
-		# translate("text"), __("text")
-		r"translate\(\"(?P<message>[^\"]*?)\"\)",
-		r"__\(\"(?P<message>[^\"]*?)\"\)",
-		# translate('text'), __('text')
-		r"translate\('(?P<message>(?:[^']|\\')*?)'\)",
-		r"__\('(?P<message>(?:[^']|\\')*?)'\)"
+			# Функции с шаблонными строками: __(`text`), translate(`text`)
+			r"(?:__|translate)\s*\(\s*([\"'`])(?P<message>(?:\\\1|.)*?)\1\s*[),]",
+
+			# Twig: {{ 'text'|trans }} и {% 'text'|trans %}
+			r"(?:{{|{%)(?:[^'\"{}]|{[^{]})*['\"`](?P<message>(?:\\[`'\"]]|.)*?)[`'\"]][^|]*?\|\s*trans\s*(?:}}|%})",
+
+			# Twig: {% trans %}text{% endtrans %}
+			r"{%\s*trans\s*%}(?P<message>.*?){%\s*endtrans\s*%}",
+
+			# Фильтры: 'text'|trans или "text"|trans
+			r"['\"](?P<message>(?:\\['\"]|.)*?)['\"]\s*(?:\|\s*\w+\s*)*\|\s*trans",
 	]
 
 	# Печать прогресса
