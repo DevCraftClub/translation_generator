@@ -4,6 +4,24 @@ import re
 import traceback
 import xml.etree.cElementTree as ET
 
+# Один PHP-строковый литерал в одинарных/двойных/обратных кавычках,
+# с корректной обработкой экранированных символов внутри.
+PHP_STRING_LITERAL = r"'(?:\\.|[^'\\])*'|\"(?:\\.|[^\"\\])*\"|`(?:\\.|[^`\\])*`"
+PHP_LITERAL_RE = re.compile(PHP_STRING_LITERAL, re.DOTALL)
+
+# Аргумент вызова __()/translate(): один литерал либо цепочка конкатенации
+# ('a' . 'b' . 'c'), включая многострочные варианты.
+CALL_MESSAGE_PATTERN = (
+		rf"(?:__|translate)\s*\(\s*"
+		rf"(?P<message>(?:{PHP_STRING_LITERAL})(?:\s*\.\s*(?:{PHP_STRING_LITERAL}))*)"
+		rf"\s*[),]"
+)
+
+
+def concat_php_literals(raw):
+	"""Склеивает конкатенированные PHP-литералы ('a' . 'b' . 'c') в одну строку."""
+	return "".join(lit[1:-1] for lit in PHP_LITERAL_RE.findall(raw))
+
 
 def list_dir(dirs, expt=None):
 	"""Рекурсивная функция для поиска всех директорий и файлов."""
@@ -69,24 +87,43 @@ def sanitize_translations(message, translations):
 	return translations[message]
 
 
+def _register_message(message, translations, module):
+	"""Пропускает пустые/служебные строки, снимает экранирование кавычек и сохраняет перевод."""
+	if not message or message in {'#', '.', ',', module, '=&gt;', '=&lt;', '&gt;', '&lt;'}:
+		return
+	message = re.sub(r"\\(['\"`])", r"\1", message)
+	sanitize_translations(message, translations)
+
+
 def extract_translations_from_file(file, regex_patterns, translations, debug, module):
-	"""Извлечение сообщений перевода из файла."""
-	compiled_patterns = [re.compile(p, re.DOTALL) for p in regex_patterns]
+	"""
+	Извлечение сообщений перевода из файла.
+
+	regex_patterns[0] (вызовы __()/translate()) сканируется по всему файлу
+	целиком: иначе многострочная конкатенация ('a' . 'b' . ...) никогда не
+	совпадает — построчный поиск видит только один фрагмент за раз.
+
+	Остальные паттерны (twig-фильтры |trans, {% trans %}) сканируются
+	построчно, как раньше: их регулярки не рассчитаны на весь файл и при
+	поиске по всему тексту могут "перескочить" через границы строк.
+	"""
+	call_pattern = re.compile(regex_patterns[0], re.DOTALL)
+	line_patterns = [re.compile(p, re.DOTALL) for p in regex_patterns[1:]]
 	try:
 		with open(file, mode="r", encoding="utf-8") as f:
-			for line in f:
-				for regex in compiled_patterns:
-					match = regex.search(line)
-					if match:
-						# Убираем лишние кавычки
-						message = match.group("message").strip().strip('"\'`')
-						# Пропускаем пустые или служебные строки
-						if not message or message in {'#', '.', ',', module, '=&gt;', '=&lt;', '&gt;', '&lt;'}:
-							continue
-						# Обработка экранированных кавычек
-						message = re.sub(r"\\(['\"`])", r"\1", message)
-						sanitize_translations(message, translations)
-						break
+			content = f.read()
+
+		for match in call_pattern.finditer(content):
+			message = concat_php_literals(match.group("message")).strip()
+			_register_message(message, translations, module)
+
+		for line in content.splitlines():
+			for regex in line_patterns:
+				match = regex.search(line)
+				if match:
+					message = match.group("message").strip().strip('"\'`')
+					_register_message(message, translations, module)
+					break
 	except Exception as e:
 		if debug:
 			print(f"Ошибка при обработке файла: {file}\n{str(e)}")

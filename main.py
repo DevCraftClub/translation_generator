@@ -3,8 +3,8 @@ import time
 from pathlib import Path
 
 from assets.classes import Body, File, TransUnit, Xliff
-from assets.functions import (extract_translations_from_file, getTranslationsFromFile, list_dir, parse_arguments,
-                              printProgressBar)
+from assets.functions import (CALL_MESSAGE_PATTERN, extract_translations_from_file, getTranslationsFromFile,
+                              list_dir, parse_arguments, printProgressBar)
 
 
 def main():
@@ -24,7 +24,7 @@ def main():
 	search_dirs = list_dir(src_dir, exceptions)
 
 	regex_patterns = [
-			r"(?:__|translate)\s*\(\s*([\"'`])(?P<message>(?:\\\1|.)*?)\1\s*[),]",
+			CALL_MESSAGE_PATTERN,
 			r"(?:{{|{%)(?:[^'\"{}]|{[^{]})*['\"`](?P<message>(?:\\[`'\"]]|.)*?)[`'\"]][^|]*?\|\s*trans\s*(?:}}|%})",
 			r"{%\s*trans\s*%}(?P<message>.*?){%\s*endtrans\s*%}",
 			r"[\"'](?P<message>(?:\\[\"']|[^\"'])*?)[\"']\s*\|\s*trans\b",
