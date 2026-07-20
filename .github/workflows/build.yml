@@ -8,7 +8,7 @@ on:
 
 jobs:
   verify:
-    runs-on: self-hosted
+    runs-on: [self-hosted, homeserver]
     steps:
       - uses: actions/checkout@v7
 
