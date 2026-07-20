@@ -36,10 +36,13 @@ jobs:
     runs-on: homeserver
     steps:
       - uses: actions/checkout@v7
-
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.12"
+      
+      - name: Create virtualenv
+        run: |
+          python3 -m venv .venv
+          . .venv/bin/activate
+          echo PATH=$PATH >> $GITHUB_ENV
+          python3 -m pip install --upgrade pip
 
       - name: Install dependencies
         run: |
