@@ -4,11 +4,11 @@ repos:
     repository: https://github.com/DevCraftClub/mhadmin.git
     source: upload/
     trans_file: devcraft
-  - name: TagsAdd
+  - name: 'Custom UserTags'
     config: crowdin.yml
     repository: https://github.com/DevCraftClub/tagsadd.git
     source: upload/
-    trans_file: tagsadd
+    trans_file: tags_add
   - name: DB-Manager
     config: crowdin.yml
     repository: https://github.com/DevCraftClub/DB-Manager.git
