@@ -1,0 +1,26 @@
+name: Generate i18
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 3 * * 1"
+
+jobs:
+  generate:
+    runs-on: homeserver
+    permissions:
+      contents: read
+    env:
+      GH_PAT: ${{ secrets.GH_PAT }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Generate translation sources
+        run: python scripts/generate_i18_repos.py

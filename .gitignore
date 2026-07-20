@@ -213,3 +213,7 @@ dmypy.json
 # Cython debug symbols
 cython_debug/
 
+# Added by code-review-graph
+.code-review-graph/
+graphify-out/
+output/

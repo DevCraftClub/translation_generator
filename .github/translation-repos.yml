@@ -1,0 +1,21 @@
+repos:
+  - name: 'DevCraft AdminPanel'
+    config: crowdin.yml
+    repository: https://github.com/DevCraftClub/mhadmin.git
+    source: upload/
+  - name: TagsAdd
+    config: crowdin.yml
+    repository: https://github.com/DevCraftClub/tagsadd.git
+    source: upload/
+  - name: DB-Manager
+    config: crowdin.yml
+    repository: https://github.com/DevCraftClub/DB-Manager.git
+    source: upload/
+  - name: 'Re: Post'
+    config: crowdin.yml
+    repository: https://github.com/DevCraftClub/dle-repost.git
+    source: upload/
+  - name: 'DLE Faker'
+    config: crowdin.yml
+    repository: https://github.com/DevCraftClub/dle_faker.git
+    source: upload/
