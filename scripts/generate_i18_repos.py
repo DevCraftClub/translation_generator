@@ -51,7 +51,7 @@ def process_repository(repo_config, token):
 		run_git(repo_dir, "checkout", "-B", BRANCH_NAME, f"origin/{default_branch}")
 
 		crowdin_config = load_yaml(repo_dir / repo_config["config"])
-		generation_jobs = collect_generation_jobs(repo_dir, repo_config, crowdin_config)
+		generation_jobs = collect_generation_jobs(repo_dir, repo_config, crowdin_config, repo_name)
 		for job in generation_jobs:
 			output_file = run_generator(
 					source=repo_dir / job["source"],
@@ -75,9 +75,10 @@ def process_repository(repo_config, token):
 		ensure_pull_request(owner, repo_name, default_branch, token, repo_config["name"])
 
 
-def collect_generation_jobs(repo_dir, repo_config, crowdin_config):
+def collect_generation_jobs(repo_dir, repo_config, crowdin_config, repo_name):
 	jobs = []
 	seen = set()
+	module = repo_config.get("trans_file") or repo_name
 	for file_config in crowdin_config.get("files", []):
 		source_pattern = file_config.get("source")
 		if not source_pattern:
@@ -89,22 +90,18 @@ def collect_generation_jobs(repo_dir, repo_config, crowdin_config):
 
 		lang = pattern_path.parent.name
 		output_root = str(Path(*pattern_path.parent.parent.parts))
-		module_paths = sorted(repo_dir.glob(normalized_pattern))
-		modules = [path.stem for path in module_paths] or ["messages"]
-
-		for module in modules:
-			key = (repo_config["source"], output_root, lang, module)
-			if key in seen:
-				continue
-			seen.add(key)
-			jobs.append(
-					{
-							"source": repo_config["source"],
-							"output": output_root,
-							"lang": lang,
-							"module": module,
-					}
-			)
+		key = (repo_config["source"], output_root, lang, module)
+		if key in seen:
+			continue
+		seen.add(key)
+		jobs.append(
+				{
+						"source": repo_config["source"],
+						"output": output_root,
+						"lang": lang,
+						"module": module,
+				}
+		)
 	return jobs
 
 
