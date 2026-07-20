@@ -1,5 +1,5 @@
 numpy==2.2.1
-pytz==2024.2
+pytz==2026.2
 PyYAML==6.0.2
 setuptools==83.0.0
 wheel==0.45.1
