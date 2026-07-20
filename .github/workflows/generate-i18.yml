@@ -15,8 +15,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v7
-
       - name: Show Python version
         run: python3 --version
 
