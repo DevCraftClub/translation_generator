@@ -18,6 +18,16 @@ CALL_MESSAGE_PATTERN = (
 )
 
 
+def get_regex_patterns():
+	"""Возвращает паттерны поиска переводимых строк."""
+	return [
+			CALL_MESSAGE_PATTERN,
+			r"(?:{{|{%)(?:[^'\"{}]|{[^{]})*['\"`](?P<message>(?:\\[`'\"]]|.)*?)[`'\"]][^|]*?\|\s*trans\s*(?:}}|%})",
+			r"{%\s*trans\s*%}(?P<message>.*?){%\s*endtrans\s*%}",
+			r"[\"'](?P<message>(?:\\[\"']|[^\"'])*?)[\"']\s*\|\s*trans\b",
+	]
+
+
 def concat_php_literals(raw):
 	"""Склеивает конкатенированные PHP-литералы ('a' . 'b' . 'c') в одну строку."""
 	return "".join(lit[1:-1] for lit in PHP_LITERAL_RE.findall(raw))
@@ -40,6 +50,11 @@ def printProgressBar(iteration, total, prefix='', suffix='', decimals=1, length=
 	"""
 	Вывод индикатора прогресса в консоль.
 	"""
+	if total <= 0:
+		print(f'\r{prefix} |{"-" * length}| 100.0% {suffix}', end=printEnd)
+		if printEnd != "":
+			print()
+		return
 	percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
 	filledLength = int(length * iteration // total)
 	bar = fill * filledLength + '-' * (length - filledLength)
