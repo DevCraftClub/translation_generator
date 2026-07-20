@@ -3,19 +3,24 @@ repos:
     config: crowdin.yml
     repository: https://github.com/DevCraftClub/mhadmin.git
     source: upload/
+    trans_file: devcraft
   - name: TagsAdd
     config: crowdin.yml
     repository: https://github.com/DevCraftClub/tagsadd.git
     source: upload/
+    trans_file: tagsadd
   - name: DB-Manager
     config: crowdin.yml
     repository: https://github.com/DevCraftClub/DB-Manager.git
     source: upload/
+    trans_file: db-manager
   - name: 'Re: Post'
     config: crowdin.yml
     repository: https://github.com/DevCraftClub/dle-repost.git
     source: upload/
+    trans_file: repost
   - name: 'DLE Faker'
     config: crowdin.yml
     repository: https://github.com/DevCraftClub/dle_faker.git
     source: upload/
+    trans_file: dle-faker
