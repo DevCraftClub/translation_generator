@@ -1,5 +1,5 @@
-numpy==2.2.1
-pytz==2026.3.post1
+numpy==2.5.1
+pytz==2026.2
 PyYAML==6.0.3
 setuptools==83.0.0
 wheel==0.45.1
