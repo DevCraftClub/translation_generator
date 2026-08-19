@@ -24,3 +24,8 @@ repos:
     repository: https://github.com/DevCraftClub/dle_faker.git
     source: upload/
     trans_file: dle-faker
+  - name: 'DLE API'
+    config: crowdin.yml
+    repository: https://github.com/DevCraftClub/dle_api.git
+    source: upload/
+    trans_file: dle-api
