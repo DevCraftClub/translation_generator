@@ -134,8 +134,10 @@ def push_branch(repo_dir, owner, repo_name, token):
 def clone_repository(repo_url, repo_dir, token):
 	owner, repo_name = parse_repository(repo_url)
 	auth_url = f"https://x-access-token:{token}@github.com/{owner}/{repo_name}.git"
+	# Fetch the existing i18-generated branch too so --force-with-lease works.
+	# No-op if the branch doesn't exist yet; fetch exit code is ignored.
 	subprocess.run(
-			["git", "clone", "--depth", "1", auth_url, str(repo_dir)],
+			["git", "clone", "--depth", "1", "--no-single-branch", auth_url, str(repo_dir)],
 			check=True,
 			text=True,
 	)
