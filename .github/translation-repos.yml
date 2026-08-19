@@ -28,4 +28,4 @@ repos:
     config: crowdin.yml
     repository: https://github.com/DevCraftClub/dle_api.git
     source: upload/
-    trans_file: dle-api
+    trans_file: dleapi
