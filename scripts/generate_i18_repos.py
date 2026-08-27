@@ -33,7 +33,7 @@ def main():
 	for repo_config in repos:
 		try:
 			process_repository(repo_config, token)
-		except Exception as exc:  # noqa: BLE001
+		except Exception as exc:
 			failures.append(f"{repo_config.get('name', repo_config.get('repository'))}: {exc}")
 
 	if failures:
@@ -67,8 +67,8 @@ def process_repository(repo_config, token):
 			print(f"[{repo_config['name']}] no changes")
 			return
 
-		run_git(repo_dir, "config", "user.name", "translation-generator[bot]")
-		run_git(repo_dir, "config", "user.email", "translation-generator[bot]@users.noreply.github.com")
+		run_git(repo_dir, "config", "user.name", "DevCraft Bot")
+		run_git(repo_dir, "config", "user.email", "ci@devcraft.com")
 		run_git(repo_dir, "add", ".")
 		run_git(repo_dir, "commit", "-m", "chore(i18): regenerate source xliff")
 		push_branch(repo_dir, owner, repo_name, token)
@@ -134,8 +134,6 @@ def push_branch(repo_dir, owner, repo_name, token):
 def clone_repository(repo_url, repo_dir, token):
 	owner, repo_name = parse_repository(repo_url)
 	auth_url = f"https://x-access-token:{token}@github.com/{owner}/{repo_name}.git"
-	# Fetch the existing i18-generated branch too so --force-with-lease works.
-	# No-op if the branch doesn't exist yet; fetch exit code is ignored.
 	subprocess.run(
 			["git", "clone", "--depth", "1", "--no-single-branch", auth_url, str(repo_dir)],
 			check=True,

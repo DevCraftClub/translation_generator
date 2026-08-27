@@ -69,23 +69,11 @@ def parse_arguments():
 	parser.add_argument('-s', '--source', type=str, help='Путь к исходным файлам', default=r'source')
 	parser.add_argument('-o', '--output', type=str, help='Путь к выходным файлам', default=r'output')
 	parser.add_argument('-e', '--exception', type=str, help='Игнорируемые файлы/пути', action='append', default=[
-			'engine/inc/maharder/admin/composer.lock',
-			'engine/inc/maharder/admin/composer.phar',
-			'engine/inc/maharder/_includes/composer',
-			'engine/inc/maharder/_includes/module_files',
-			'engine/inc/maharder/_includes/vendor',
-			'engine/inc/maharder/admin/composer.json',
-			'engine/inc/maharder/admin/.htaccess',
-			'engine/inc/maharder/admin/assets/.htaccess',
-			'engine/inc/maharder/admin/assets/js/i18n',
-			'engine/inc/maharder/admin/assets/css',
-			'engine/inc/maharder/admin/assets/img',
-			'engine/inc/maharder/admin/assets/webfonts',
-			'engine/inc/maharder/_locales',
-			'engine/inc/maharder/_cache',
-			'engine/inc/maharder/_logs',
-			'engine/inc/maharder/_config',
-			'engine/inc/maharder/_migrations',
+			'devcraft/configs',
+			'devcraft/logs',
+			'devcraft/cache',
+			'devcraft/vendor',
+			'devcraft/composer.json',
 	])
 	parser.add_argument('-m', '--module', type=str, help='Имя файла перевода', default='messages')
 	parser.add_argument('-l', '--lang', type=str, help='Язык перевода', default='ru_RU')
