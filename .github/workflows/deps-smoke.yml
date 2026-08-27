@@ -1,0 +1,33 @@
+name: deps-smoke
+
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.12', '3.13', '3.14']
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: CLI starts
+        run: python main.py --help
+
+      - name: Generate against complex fixtures
+        run: python main.py -s tests/fixtures -o /tmp/tg-out -m smoke -l ru_RU
+
+      - name: Verify against golden file
+        run: python tests/verify_smoke.py /tmp/tg-out/ru_RU/smoke.xliff tests/expected/smoke_sources.json

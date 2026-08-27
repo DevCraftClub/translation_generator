@@ -2,6 +2,8 @@ import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from typing import List, Optional
 
+from assets.functions import prettify_xliff
+
 
 # Класс, описывающий отдельный переводимый блок (trans-unit)
 @dataclass
@@ -124,3 +126,4 @@ class Xliff:
 
 		tree = ET.ElementTree(root)
 		tree.write(file_path, encoding="utf-8", xml_declaration=True)
+		prettify_xliff(file_path)

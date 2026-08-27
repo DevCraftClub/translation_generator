@@ -3,17 +3,22 @@ import os
 import re
 import traceback
 import xml.etree.cElementTree as ET
+from pathlib import Path
+from xml.dom import minidom
 
 # Один PHP-строковый литерал в одинарных/двойных/обратных кавычках,
 # с корректной обработкой экранированных символов внутри.
 PHP_STRING_LITERAL = r"'(?:\\.|[^'\\])*'|\"(?:\\.|[^\"\\])*\"|`(?:\\.|[^`\\])*`"
 PHP_LITERAL_RE = re.compile(PHP_STRING_LITERAL, re.DOTALL)
 
-# Аргумент вызова __()/translate(): один литерал либо цепочка конкатенации
-# ('a' . 'b' . 'c'), включая многострочные варианты.
+# Часть конкатенации: строковый литерал или PHP_EOL (вставляется как \n).
+PHP_CONCAT_PART = rf"(?:{PHP_STRING_LITERAL}|PHP_EOL)"
+
+# Аргумент вызова __()/translate()/t(): один литерал либо цепочка конкатенации
+# ('a' . 'b' . PHP_EOL . 'c'), включая многострочные варианты.
 CALL_MESSAGE_PATTERN = (
-		rf"(?:__|translate)\s*\(\s*"
-		rf"(?P<message>(?:{PHP_STRING_LITERAL})(?:\s*\.\s*(?:{PHP_STRING_LITERAL}))*)"
+		rf"(?:__|translate|\bt)\s*\(\s*"
+		rf"(?P<message>(?:{PHP_CONCAT_PART})(?:\s*\.\s*(?:{PHP_CONCAT_PART}))*)"
 		rf"\s*[),]"
 )
 
@@ -29,8 +34,12 @@ def get_regex_patterns():
 
 
 def concat_php_literals(raw):
-	"""Склеивает конкатенированные PHP-литералы ('a' . 'b' . 'c') в одну строку."""
-	return "".join(lit[1:-1] for lit in PHP_LITERAL_RE.findall(raw))
+	"""Склеивает конкатенированные PHP-литералы/'PHP_EOL' ('a' . PHP_EOL . 'b') в одну строку."""
+	parts = []
+	for m in re.finditer(PHP_CONCAT_PART, raw, re.DOTALL):
+		tok = m.group(0)
+		parts.append("\n" if tok == "PHP_EOL" else tok[1:-1])
+	return "".join(parts)
 
 
 def list_dir(dirs, expt=None):
@@ -69,23 +78,11 @@ def parse_arguments():
 	parser.add_argument('-s', '--source', type=str, help='Путь к исходным файлам', default=r'source')
 	parser.add_argument('-o', '--output', type=str, help='Путь к выходным файлам', default=r'output')
 	parser.add_argument('-e', '--exception', type=str, help='Игнорируемые файлы/пути', action='append', default=[
-			'engine/inc/maharder/admin/composer.lock',
-			'engine/inc/maharder/admin/composer.phar',
-			'engine/inc/maharder/_includes/composer',
-			'engine/inc/maharder/_includes/module_files',
-			'engine/inc/maharder/_includes/vendor',
-			'engine/inc/maharder/admin/composer.json',
-			'engine/inc/maharder/admin/.htaccess',
-			'engine/inc/maharder/admin/assets/.htaccess',
-			'engine/inc/maharder/admin/assets/js/i18n',
-			'engine/inc/maharder/admin/assets/css',
-			'engine/inc/maharder/admin/assets/img',
-			'engine/inc/maharder/admin/assets/webfonts',
-			'engine/inc/maharder/_locales',
-			'engine/inc/maharder/_cache',
-			'engine/inc/maharder/_logs',
-			'engine/inc/maharder/_config',
-			'engine/inc/maharder/_migrations',
+			'devcraft/configs',
+			'devcraft/logs',
+			'devcraft/cache',
+			'devcraft/vendor',
+			'devcraft/composer.json',
 	])
 	parser.add_argument('-m', '--module', type=str, help='Имя файла перевода', default='messages')
 	parser.add_argument('-l', '--lang', type=str, help='Язык перевода', default='ru_RU')
@@ -114,7 +111,7 @@ def extract_translations_from_file(file, regex_patterns, translations, debug, mo
 	"""
 	Извлечение сообщений перевода из файла.
 
-	regex_patterns[0] (вызовы __()/translate()) сканируется по всему файлу
+	regex_patterns[0] (вызовы __()/translate()/t()) сканируется по всему файлу
 	целиком: иначе многострочная конкатенация ('a' . 'b' . ...) никогда не
 	совпадает — построчный поиск видит только один фрагмент за раз.
 
@@ -165,3 +162,20 @@ def getTranslationsFromFile(output_file):
 		print(f"Ошибка при чтении файла переводов: {output_file}\n{str(e)}")
 		traceback.print_exc()
 	return translations
+
+
+def prettify_xliff(file_path):
+	"""Перезаписывает XLIFF с отступами (не в одну строку)."""
+	path = Path(file_path)
+	raw = path.read_bytes()
+	dom = minidom.parseString(raw)
+	pretty = dom.toprettyxml(indent="\t", encoding="utf-8")
+	# minidom adds an extra XML declaration line; keep one declaration + body
+	text = pretty.decode("utf-8")
+	lines = [line for line in text.splitlines() if line.strip()]
+	if lines and lines[0].startswith("<?xml"):
+		body = "\n".join(lines[1:])
+		path.write_text(f'{lines[0]}\n{body}\n', encoding="utf-8")
+	else:
+		path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+	return path
