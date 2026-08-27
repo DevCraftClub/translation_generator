@@ -6,7 +6,9 @@
 - CLI через `main.py`
 - Windows-запуск через `app/start.cmd`
 - Linux GUI через `app/start.sh`
-- GitHub Actions для сборки и автоматической генерации исходных XLIFF в сторонних репозиториях
+- XLIFF с форматированием (pretty-print)
+
+Сборка бинарников и генерация i18 для внешних репозиториев выполняются в отдельном репозитории **CrowdIn-Generator** (Woodpecker на `git.hrdr.dev`).
 
 ## Установка
 
@@ -67,18 +69,6 @@ python main.py -s /path/to/source -o /path/to/output -e /path/to/exclude -m mess
 
 ## CI
 
-### Build workflow
-
-Файл: `.github/workflows/build.yml`
-
-Что делает:
-- запускается на `push` и `pull_request` в `main` / `master`
-- выполняется на runner label `homeserver`
-- проверяет код через `compileall`
-- запускает `python main.py --help`
-- собирает Linux binary через PyInstaller
-- публикует artifact `parser-linux`
-
 ### Dependabot
 
 Файл: `.github/dependabot.yml`
@@ -88,66 +78,6 @@ python main.py -s /path/to/source -o /path/to/output -e /path/to/exclude -m mess
 - GitHub Actions
 
 Частота: раз в неделю.
-
-## Автоматическая генерация i18 для других репозиториев
-
-Файлы:
-- `.github/translation-repos.yml`
-- `.github/workflows/generate-i18.yml`
-- `scripts/generate_i18_repos.py`
-
-Workflow читает список репозиториев из `.github/translation-repos.yml`, клонирует каждый репозиторий, находит его Crowdin-конфиг, генерирует исходные XLIFF-файлы, пушит ветку `i18-generated` и открывает PR в default branch.
-
-### Формат `translation-repos.yml`
-
-```yaml
-repos:
-  - name: DevCraft AdminPanel
-    config: crowdin.yml
-    repository: https://github.com/DevCraftClub/mhadmin.git
-    source: upload/
-```
-
-Поля:
-- `name` — произвольное имя для логов
-- `config` — путь к Crowdin YAML внутри целевого репозитория
-- `repository` — Git URL целевого репозитория
-- `source` — каталог с исходным кодом, который нужно сканировать
-
-### Как берутся пути генерации
-
-Из Crowdin-конфига используется блок вида:
-
-```yaml
-files:
-  - source: /upload/devcraft/locales/ru_RU/*.xliff
-    translation: /upload/devcraft/locales/%locale_with_underscore%/%file_name%.%file_extension%
-```
-
-Из него вычисляется:
-- каталог для `-o`: `upload/devcraft/locales`
-- язык для `-l`: `ru_RU`
-- модули для `-m`: имена существующих `*.xliff` в каталоге `ru_RU`
-
-Поле `translation` не перезаписывается: workflow регенерирует только исходные XLIFF-файлы.
-
-## Секрет `GH_PAT`
-
-Для workflow `generate-i18.yml` нужен секрет `GH_PAT`.
-
-`GH_PAT` = GitHub Personal Access Token, добавленный в:
-
-`Settings -> Secrets and variables -> Actions -> New repository secret`
-
-Почему нужен именно он:
-- `GITHUB_TOKEN` действует только в текущем репозитории
-- workflow пушит изменения и создаёт PR в других репозиториях из `.github/translation-repos.yml`
-
-Минимально нужные права для fine-grained PAT:
-- доступ ко всем целевым репозиториям из `.github/translation-repos.yml`
-- `Contents: Read and write`
-- `Pull requests: Read and write`
-- `Metadata: Read`
 
 ## Структура проекта
 
@@ -162,11 +92,5 @@ app/
   gui.py
 .github/
   dependabot.yml
-  translation-repos.yml
-  workflows/
-    build.yml
-    generate-i18.yml
-scripts/
-  generate_i18_repos.py
 main.py
 ```
