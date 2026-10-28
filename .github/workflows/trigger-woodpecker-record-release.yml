@@ -1,0 +1,40 @@
+# После merge PR с лейблом ci-auto-deploy — записать sourceSha/buildId на Forgejo.
+name: Trigger Woodpecker record-release
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    if: >
+      github.event.pull_request.merged == true &&
+      contains(join(github.event.pull_request.labels.*.name, ','), 'ci-auto-deploy')
+    steps:
+      - name: Extract sourceSha and start record-release
+        env:
+          PRIVATE_CI_TOKEN: ${{ secrets.PRIVATE_CI_TOKEN }}
+          PRIVATE_CI_URL: ${{ vars.PRIVATE_CI_URL }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          set -euo pipefail
+          if [ -z "${PRIVATE_CI_TOKEN:-}" ] || [ -z "${PRIVATE_CI_URL:-}" ]; then
+            echo "PRIVATE_CI_TOKEN and PRIVATE_CI_URL are required"
+            exit 1
+          fi
+          SOURCE_SHA="$(printf '%s\n' "$PR_BODY" | sed -n 's/^sourceSha:[[:space:]]*//p' | head -n1 | tr '[:upper:]' '[:lower:]' | tr -d '\r')"
+          if [ -z "$SOURCE_SHA" ]; then
+            echo "sourceSha marker missing in PR body"
+            exit 1
+          fi
+          export SOURCE_SHA
+          BASE="${PRIVATE_CI_URL%/}"
+          PAYLOAD="$(python3 -c 'import json,os; print(json.dumps({"branch":"main","variables":{"RELEASE_ACTION":"record","SOURCE_SHA":os.environ["SOURCE_SHA"],"MERGED_PR_BODY":os.environ.get("PR_BODY","")}}))')"
+          curl -fsS -X POST \
+            "${BASE}/api/repos/DevCraft/CrowdIn-Generator/pipelines" \
+            -H "Authorization: Bearer ${PRIVATE_CI_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD"

@@ -1,0 +1,34 @@
+# Будит Woodpecker build на git.hrdr.dev после push в main (исходящий API-вызов).
+name: Trigger Woodpecker build
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "app/**"
+      - "**.md"
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    # Не будить сборку от коммитов авто-deploy ветки (на всякий случай).
+    if: ${{ !startsWith(github.ref_name, 'deploy/builds-') }}
+    steps:
+      - name: Start CrowdIn-Generator build pipeline
+        env:
+          PRIVATE_CI_TOKEN: ${{ secrets.PRIVATE_CI_TOKEN }}
+          PRIVATE_CI_URL: ${{ vars.PRIVATE_CI_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${PRIVATE_CI_TOKEN:-}" ] || [ -z "${PRIVATE_CI_URL:-}" ]; then
+            echo "PRIVATE_CI_TOKEN and PRIVATE_CI_URL are required"
+            exit 1
+          fi
+          BASE="${PRIVATE_CI_URL%/}"
+          # Woodpecker API: POST /api/repos/{owner}/{name}/pipelines
+          curl -fsS -X POST \
+            "${BASE}/api/repos/DevCraft/CrowdIn-Generator/pipelines" \
+            -H "Authorization: Bearer ${PRIVATE_CI_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d '{"branch":"main","variables":{"RELEASE_ACTION":"build"}}'
