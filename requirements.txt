@@ -1,6 +1,6 @@
 numpy==2.5.4
 pytz==2026.5
 PyYAML==6.0.3
-setuptools==84.0.0
+setuptools==84.2.1
 wheel==0.48.0
 xmltodict==1.0.4
